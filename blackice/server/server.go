@@ -1,4 +1,4 @@
-package main
+package server
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/amongil/blackice/ec2utils"
+	"github.com/amongil/blackice/blackice/ec2utils"
 	"github.com/julienschmidt/httprouter"
 )
 
@@ -35,12 +35,26 @@ func instances(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	fmt.Fprintf(w, string(res))
 }
 
-func main() {
-
+// New creates a new http server that can be started and stopped
+func New() *http.Server {
 	router := httprouter.New()
 	router.GET("/", index)
 	router.GET("/hello/:name", hello)
 	router.GET("/instances/:keyname", instances)
+	addr := "127.0.0.1:8080"
+	srv := &http.Server{
+		Handler: router,
+		Addr:    addr,
+	}
+	return srv
+}
 
-	log.Fatal(http.ListenAndServe(":8080", router))
+// Start makes the server start listening for requests
+func Start(srv *http.Server) {
+	log.Fatal(srv.ListenAndServe())
+}
+
+// Stop makes the server stop listening for requests
+func Stop(srv *http.Server) {
+	srv.Shutdown(nil)
 }
