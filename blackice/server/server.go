@@ -52,8 +52,9 @@ func fingerprint(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 }
 
 func instances(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	key := r.FormValue("keyname")
 	cl := ec2utils.NewClient("eu-central-1")
-	instances, err := cl.GetInstancesByKeyPair(ps.ByName("keyname"))
+	instances, err := cl.GetInstancesByKeyPair(key)
 	if err != nil {
 		fmt.Println(err.Error())
 	}
@@ -62,8 +63,8 @@ func instances(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	if err != nil {
 		fmt.Printf("Error: %s", err)
 	}
-	// w.Header().Set("Content-Type", "application/json")
-	// w.WriteHeader(http.StatusOK)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
 
 	fmt.Fprintf(w, string(res))
 }
@@ -73,7 +74,7 @@ func New() *http.Server {
 	router := httprouter.New()
 	router.GET("/", index)
 	router.GET("/hello/:name", hello)
-	router.GET("/instances/:keyname", instances)
+	router.POST("/instances", instances)
 	router.POST("/fingerprint", fingerprint)
 	addr := "127.0.0.1:8080"
 	srv := &http.Server{
