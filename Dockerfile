@@ -2,6 +2,7 @@
 # using the current working directory.
 FROM golang:alpine
 MAINTAINER "Alvaro Mongil <hello@alvaromongil.com>"
+RUN apk add --no-cache git
 
 # Copy the local package files to the container's workspace.
 ADD . $GOPATH/src/github.com/amongil/blackice
