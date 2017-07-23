@@ -25,14 +25,24 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
 
 	"github.com/amongil/blackice/blackice/ec2utils"
+	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/julienschmidt/httprouter"
 )
+
+type instanceStruct struct {
+	Name             string
+	PrivateIPAddress string
+}
+type scanResponse struct {
+	AllowedInstances *[]instanceStruct
+}
 
 func index(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 	fmt.Fprint(w, "Welcome!\n")
@@ -69,12 +79,83 @@ func instances(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
 	fmt.Fprintf(w, string(res))
 }
 
+func keypairs(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	cl := ec2utils.NewClient("eu-central-1")
+	keyPairs, err := cl.GetKeyPairs()
+	if err != nil {
+		fmt.Println(err.Error())
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	res, err := json.MarshalIndent(keyPairs, "", "\t")
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+	fmt.Fprintf(w, string(res))
+}
+
+func scan(w http.ResponseWriter, r *http.Request, ps httprouter.Params) {
+	identity := r.FormValue("identity")
+	cl := ec2utils.NewClient("eu-central-1")
+	keyPairs, err := cl.GetKeyPairs()
+	if err != nil {
+		fmt.Println(err.Error())
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+
+	keyName, err := findKeyNameByFingerprint(keyPairs, identity)
+	if err != nil {
+		fmt.Println(err.Error())
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+	instances, err := cl.GetInstancesByKeyPair(keyName)
+	if err != nil {
+		fmt.Println(err.Error())
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		fmt.Fprintf(w, err.Error())
+		return
+	}
+	scanResponse := new(scanResponse)
+	var allowedInstances []instanceStruct
+	for _, instance := range instances {
+		allowedInstances = append(allowedInstances,
+			instanceStruct{
+				Name:             *instance.InstanceId,
+				PrivateIPAddress: *instance.PrivateIpAddress,
+			})
+	}
+	scanResponse.AllowedInstances = &allowedInstances
+	// Convert our structures to json
+	res, err := json.MarshalIndent(scanResponse, "", "\t")
+	if err != nil {
+		fmt.Printf("Error: %s", err)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	fmt.Fprintf(w, string(res))
+}
+
 // New creates a new http server that can be started and stopped
 func New() *http.Server {
 	router := httprouter.New()
 	router.GET("/", index)
 	router.GET("/hello/:name", hello)
+	router.POST("/keypairs", keypairs)
 	router.POST("/instances", instances)
+	router.POST("/scan", scan)
 	router.POST("/fingerprint", fingerprint)
 	addr := "127.0.0.1:8080"
 	srv := &http.Server{
@@ -94,7 +175,7 @@ func Stop(srv *http.Server) {
 	srv.Shutdown(nil)
 }
 
-// GetFingerprint return finerprint of ssh-key
+// GetFingerprint returns fingerprint of ssh-key
 func GetFingerprint(pemFile []byte) (string, error) {
 	block, _ := pem.Decode(pemFile)
 
@@ -111,4 +192,13 @@ func GetFingerprint(pemFile []byte) (string, error) {
 	sha := fmt.Sprintf("% x", sha1.Sum(keyPKCS8))
 	sha = strings.Replace(sha, " ", ":", -1)
 	return sha, nil
+}
+
+func findKeyNameByFingerprint(keyPairs []*ec2.KeyPairInfo, fingerprint string) (string, error) {
+	for _, keyPair := range keyPairs {
+		if *keyPair.KeyFingerprint == fingerprint {
+			return *keyPair.KeyName, nil
+		}
+	}
+	return "", errors.New("IdentityNotFoundError")
 }
