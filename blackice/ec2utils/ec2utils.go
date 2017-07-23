@@ -93,6 +93,17 @@ func (cl *Client) GetInstancesByKeyPair(k string) ([]*ec2.Instance, error) {
 	return result, err
 }
 
+// GetKeyPairs returns all the Key Pairs registered on the account
+func (cl *Client) GetKeyPairs() ([]*ec2.KeyPairInfo, error) {
+	result, err := cl.DescribeKeyPairs(&ec2.DescribeKeyPairsInput{})
+	if err != nil {
+		aerr, _ := err.(awserr.Error)
+		return nil, aerr
+	}
+
+	return result.KeyPairs, err
+}
+
 // pkcs8 reflects an ASN.1, PKCS#8 PrivateKey. See
 // ftp://ftp.rsasecurity.com/pub/pkcs/pkcs-8/pkcs-8v1_2.asn
 // and RFC5208.
