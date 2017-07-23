@@ -6,6 +6,14 @@ MAINTAINER "Alvaro Mongil <hello@alvaromongil.com>"
 # Copy the local package files to the container's workspace.
 ADD . $GOPATH/src/github.com/amongil/blackice
 
+# Get the dependencies
+RUN go get github.com/aws/aws-sdk-go/aws
+RUN go get github.com/aws/aws-sdk-go/aws/awserr
+RUN go get github.com/aws/aws-sdk-go/aws/session
+RUN go get github.com/aws/aws-sdk-go/service/ec2
+RUN go get github.com/julienschmidt/httprouter
+RUN go get github.com/spf13/cobra
+
 # Build the Blackice tool inside the container.
 RUN go install github.com/amongil/blackice/blackice
 
