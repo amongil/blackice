@@ -157,7 +157,7 @@ func New() *http.Server {
 	router.POST("/instances", instances)
 	router.POST("/scan", scan)
 	router.POST("/fingerprint", fingerprint)
-	addr := "127.0.0.1:8080"
+	addr := "0.0.0.0:8080"
 	srv := &http.Server{
 		Handler: router,
 		Addr:    addr,
